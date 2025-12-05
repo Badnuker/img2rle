@@ -43,22 +43,55 @@ fn run() -> Result<String, String> {
 
     let gray_img = img.to_luma8();
 
-    // RLE 编码
-    let output = (0..height)
+    // RLE Encoding
+    // b = white (>=128), o = black (<128), $ = newline, ! = end
+    let raw_output = (0..height)
         .map(|y| {
-            (0..width)
+            let runs: Vec<_> = (0..width)
                 .map(|x| if gray_img.get_pixel(x, y)[0] >= 128 { 'b' } else { 'o' })
                 .dedup_with_count()
-                .map(|(count, ch)| {
-                    if count > 1 {
-                        format!("{}{}", count, ch)
-                    } else {
-                        ch.to_string()
-                    }
-                })
-                .collect::<String>()
+                .collect();
+
+            // If line is all white, return empty string
+            if runs.len() == 1 && runs[0].1 == 'b' {
+                String::new()
+            } else {
+                runs.into_iter()
+                    .map(|(count, ch)| {
+                        if count > 1 {
+                            format!("{}{}", count, ch)
+                        } else {
+                            ch.to_string()
+                        }
+                    })
+                    .collect::<String>()
+            }
         })
         .join("$");
+
+    // Compress consecutive '$'
+    let mut output = String::with_capacity(raw_output.len());
+    let mut dollar_count = 0;
+    for ch in raw_output.chars() {
+        if ch == '$' {
+            dollar_count += 1;
+        } else {
+            if dollar_count > 0 {
+                if dollar_count > 1 {
+                    output.push_str(&dollar_count.to_string());
+                }
+                output.push('$');
+                dollar_count = 0;
+            }
+            output.push(ch);
+        }
+    }
+    if dollar_count > 0 {
+        if dollar_count > 1 {
+            output.push_str(&dollar_count.to_string());
+        }
+        output.push('$');
+    }
 
     Ok(format!("{}!", output))
 }
